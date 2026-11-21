@@ -154,7 +154,7 @@ def main():
 
             # Rule 2: If stop ends with "235900" and the next item (same channel) is "UNKNOWN", merge them
             stop_attr = prog.get('stop', '').strip()
-            if len(stop_attr) >= 14 and stop_attr[8:14] == "235900":
+            if len(stop_attr) >= 14 and (stop_attr[8:14] == "235900" or stop_attr[8:14] == "235959"):
                 if i + 1 < len(progs):
                     next_prog = progs[i + 1]
                     if next_prog.get('channel') == orig_channel and get_prog_title(next_prog) == "精彩呈现":
