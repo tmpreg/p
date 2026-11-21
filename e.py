@@ -13,6 +13,12 @@ except ImportError:
 
 # Settings
 NAME = "light"
+# Get URLS from GitHub Secret
+raw_urls = os.environ.get("M3U_URL", "")
+URLS = [u.strip() for u in re.split(r'[\r\n,]+', raw_urls) if u.strip()]
+
+if not URLS:
+    raise ValueError("M3U_URL secret is empty or not set!")
 
 # Paths
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
@@ -21,10 +27,6 @@ os.makedirs(OUTPUT_DIR, exist_ok=True)
 
 # We only define the .gz path to stay under GitHub's 100MB limit
 OUTPUT_FILE_GZ = os.path.join(OUTPUT_DIR, f"{NAME}-epg.xml.gz")
-
-URLS = [
-    'https://raw.githubusercontent.com/kuke31/xmlgz/refs/heads/main/all.xml.gz'
-]
 
 TVG_IDS = ['5', '6', '122', '153', '355', '374']
 
