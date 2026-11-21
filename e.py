@@ -29,6 +29,7 @@ os.makedirs(OUTPUT_DIR, exist_ok=True)
 OUTPUT_FILE_GZ = os.path.join(OUTPUT_DIR, f"{NAME}-epg.xml.gz")
 
 TVG_IDS = ['5', '6', '122', '153', '355', '374']
+CHANNEL_PREFIX = "erw-"  # Set to "" if prefix is not required
 
 def get_yesterday_cutoff_for_tz(target_tz):
     """Return yesterday's 00:00:00 in the given timezone."""
@@ -91,6 +92,7 @@ def fetch_and_parse(url):
 
 def main():
     master_root = ET.Element('tv', {"generator-info-name": "TEST-GZ-Only"})
+    master_root.text = "\n"
 
     for url in URLS:
         epg_data = fetch_and_parse(url)
@@ -98,14 +100,17 @@ def main():
             continue
 
         for channel in epg_data.findall('channel'):
-            if channel.get('id') in TVG_IDS:
+            orig_id = channel.get('id')
+            if orig_id in TVG_IDS:
+                channel.set('id', f"{CHANNEL_PREFIX}{orig_id}")
                 master_root.append(channel)
 
         # Reset cutoff_dt for each URL so it adapts to this source's timezone
         cutoff_dt = None
 
         for prog in epg_data.findall('programme'):
-            if prog.get('channel') in TVG_IDS:
+            orig_channel = prog.get('channel')
+            if orig_channel in TVG_IDS:
                 try:
                     prog_start_dt = parse_xmltv_datetime(prog.get('start', ''))
                 except ValueError:
@@ -119,8 +124,11 @@ def main():
                 if prog_start_dt < cutoff_dt:
                     continue
 
+                # Apply the same prefix to <programme channel="...">
+                prog.set('channel', f"{CHANNEL_PREFIX}{orig_channel}")
+
                 title = prog.find('title')
-                if title is not None and title.text in ['NHL Hockey', 'Live: NFL Football']:
+                if title is not None and title.text:
                     sub = prog.find('sub-title')
                     if sub is not None and sub.text:
                         title.text = f"{title.text} {sub.text}"
