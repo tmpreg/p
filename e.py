@@ -28,6 +28,23 @@ URLS = [
 
 TVG_IDS = ['5', '6', '122', '153', '355', '374']
 
+def get_yesterday_cutoff_for_tz(target_tz):
+    """Return yesterday's 00:00:00 in the given timezone."""
+    now_in_tz = datetime.now(target_tz)
+    return (now_in_tz - timedelta(days=1)).replace(
+        hour=0, minute=0, second=0, microsecond=0
+    )
+
+def parse_xmltv_datetime(start_str):
+    """Parse '20261121083000 +0100' into a timezone-aware datetime."""
+    start_str = start_str.strip()
+    try:
+        return datetime.strptime(start_str, "%Y%m%d%H%M%S %z")
+    except ValueError:
+        if len(start_str) == 14:
+            return datetime.strptime(start_str, "%Y%m%d%H%M%S").replace(tzinfo=timezone.utc)
+        return datetime.strptime(start_str, "%Y%m%d%H%M%S%z")
+
 def sanitize_xml_bytes(content):
     """Strip bytes that are illegal in XML 1.0 but keep valid whitespace."""
     return re.sub(rb'[\x00-\x08\x0b\x0c\x0e-\x1f\x7f]', b'', content)
