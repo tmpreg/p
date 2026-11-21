@@ -41,7 +41,7 @@ jobs:
           date -u > last_run.txt
           
           # Add the epg and the heartbeat file
-          git add epgs/*.gz last_run.txt
+          git add e_dir/*.gz last_run.txt
           
           # Commit using amend to keep the repo history from growing
           git commit --amend -m "Fresh Update: $(date -u)" || git commit -m "Fresh Update: $(date -u)"
