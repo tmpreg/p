@@ -1,6 +1,7 @@
 import os
 import gzip
 import re
+from datetime import datetime, timedelta, timezone
 import xml.etree.ElementTree as ET
 import requests
 
@@ -59,7 +60,8 @@ def fetch_and_parse(url):
     try:
         print(f"Fetching EPG: {url.split('/')[-1]}")
         response = requests.get(url, timeout=60)
-        if response.status_code != 200: return None
+        if response.status_code != 200:
+            return None
         content = response.content
         if url.endswith('.gz'):
             content = gzip.decompress(content)
@@ -73,14 +75,31 @@ def main():
 
     for url in URLS:
         epg_data = fetch_and_parse(url)
-        if epg_data is None: continue
+        if epg_data is None:
+            continue
 
         for channel in epg_data.findall('channel'):
             if channel.get('id') in TVG_IDS:
                 master_root.append(channel)
 
+        # Reset cutoff_dt for each URL so it adapts to this source's timezone
+        cutoff_dt = None
+
         for prog in epg_data.findall('programme'):
             if prog.get('channel') in TVG_IDS:
+                try:
+                    prog_start_dt = parse_xmltv_datetime(prog.get('start', ''))
+                except ValueError:
+                    continue
+
+                # Determine cutoff_dt once per URL using this feed's timezone
+                if cutoff_dt is None:
+                    cutoff_dt = get_yesterday_cutoff_for_tz(prog_start_dt.tzinfo)
+                    print(f"  -> Using cutoff for this source: {cutoff_dt.isoformat()}")
+
+                if prog_start_dt < cutoff_dt:
+                    continue
+
                 title = prog.find('title')
                 if title is not None and title.text in ['NHL Hockey', 'Live: NFL Football']:
                     sub = prog.find('sub-title')
