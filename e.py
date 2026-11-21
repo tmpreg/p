@@ -12,7 +12,7 @@ except ImportError:
     HAS_LXML = False
 
 # Settings
-NAME = "light"
+NAME = "e"
 # Get URLS from GitHub Secret
 raw_urls = os.environ.get("M3U_URL", "")
 URLS = [u.strip() for u in re.split(r'[\r\n,]+', raw_urls) if u.strip()]
@@ -22,11 +22,11 @@ if not URLS:
 
 # Paths
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
-OUTPUT_DIR = os.path.join(BASE_DIR, "epgs")
+OUTPUT_DIR = os.path.join(BASE_DIR, "e_dir")
 os.makedirs(OUTPUT_DIR, exist_ok=True)
 
 # We only define the .gz path to stay under GitHub's 100MB limit
-OUTPUT_FILE_GZ = os.path.join(OUTPUT_DIR, f"{NAME}-epg.xml.gz")
+OUTPUT_FILE_GZ = os.path.join(OUTPUT_DIR, f"{NAME}.xml.gz")
 
 TVG_IDS = ['5', '6', '122', '153', '355', '374']
 CHANNEL_PREFIX = "erw-"  # Set to "" if prefix is not required
