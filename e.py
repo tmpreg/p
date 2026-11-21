@@ -90,8 +90,15 @@ def fetch_and_parse(url):
         print(f"  ! Error: {e}")
         return None
 
+def get_prog_title(prog):
+    """Safely extract stripped title text from a <programme> element."""
+    title_el = prog.find('title')
+    if title_el is not None and title_el.text:
+        return title_el.text.strip()
+    return ""
+
 def main():
-    master_root = ET.Element('tv', {"generator-info-name": "TEST-GZ-Only"})
+    master_root = ET.Element('tv', {"generator-info-name": "TEST-GZ"})
     master_root.text = "\n"
 
     for url in URLS:
@@ -99,40 +106,74 @@ def main():
         if epg_data is None:
             continue
 
+        # 1. Process <channel> elements
         for channel in epg_data.findall('channel'):
             orig_id = channel.get('id')
             if orig_id in TVG_IDS:
                 channel.set('id', f"{CHANNEL_PREFIX}{orig_id}")
                 master_root.append(channel)
 
-        # Reset cutoff_dt for each URL so it adapts to this source's timezone
+        # 2. Single-pass processing of <programme> elements
+        progs = epg_data.findall('programme')
         cutoff_dt = None
+        last_seen_channel = None
 
-        for prog in epg_data.findall('programme'):
+        i = 0
+        while i < len(progs):
+            prog = progs[i]
             orig_channel = prog.get('channel')
-            if orig_channel in TVG_IDS:
-                try:
-                    prog_start_dt = parse_xmltv_datetime(prog.get('start', ''))
-                except ValueError:
-                    continue
 
-                # Determine cutoff_dt once per URL using this feed's timezone
-                if cutoff_dt is None:
-                    cutoff_dt = get_yesterday_cutoff_for_tz(prog_start_dt.tzinfo)
-                    print(f"  -> Using cutoff for this source: {cutoff_dt.isoformat()}")
+            # Skip channels not in TVG_IDS
+            if orig_channel not in TVG_IDS:
+                i += 1
+                continue
 
-                if prog_start_dt < cutoff_dt:
-                    continue
+            # Parse start timestamp and filter out old programmes first
+            try:
+                prog_start_dt = parse_xmltv_datetime(prog.get('start', ''))
+            except ValueError:
+                i += 1
+                continue
 
-                # Apply the same prefix to <programme channel="...">
-                prog.set('channel', f"{CHANNEL_PREFIX}{orig_channel}")
+            if cutoff_dt is None:
+                cutoff_dt = get_yesterday_cutoff_for_tz(prog_start_dt.tzinfo)
+                print(f"  -> Using cutoff for this source: {cutoff_dt.isoformat()}")
 
-                title = prog.find('title')
-                if title is not None and title.text:
-                    sub = prog.find('sub-title')
-                    if sub is not None and sub.text:
-                        title.text = f"{title.text} {sub.text}"
-                master_root.append(prog)
+            if prog_start_dt < cutoff_dt:
+                i += 1
+                continue
+
+            # Detect the first retained programme of a channel block
+            is_first_for_channel = (orig_channel != last_seen_channel)
+            last_seen_channel = orig_channel
+
+            # Rule 1: Ignore the first retained item of a channel if its title is "UNKNOWN"
+            if is_first_for_channel and get_prog_title(prog) == "精彩呈现":
+                i += 1
+                continue
+
+            # Rule 2: If stop ends with "235900" and the next item (same channel) is "UNKNOWN", merge them
+            stop_attr = prog.get('stop', '').strip()
+            if len(stop_attr) >= 14 and stop_attr[8:14] == "235900":
+                if i + 1 < len(progs):
+                    next_prog = progs[i + 1]
+                    if next_prog.get('channel') == orig_channel and get_prog_title(next_prog) == "精彩呈现":
+                        next_stop = next_prog.get('stop', '').strip()
+                        if next_stop:
+                            prog.set('stop', next_stop)
+                        i += 1  # Advance index to skip the merged "UNKNOWN" item
+
+            # Format and append valid programme
+            prog.set('channel', f"{CHANNEL_PREFIX}{orig_channel}")
+
+            title = prog.find('title')
+            if title is not None and title.text:
+                sub = prog.find('sub-title')
+                if sub is not None and sub.text:
+                    title.text = f"{title.text} {sub.text}"
+
+            master_root.append(prog)
+            i += 1
 
     # Write ONLY the .gz file to save space and stay under 100MB
     print(f"Saving compressed EPG to {OUTPUT_FILE_GZ}...")
