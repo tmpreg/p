@@ -2,8 +2,8 @@ name: Update EPG
 
 on:
   schedule:
-    - cron: '24 16 * * *'  # 00:20 (UTC+8) every day
-  workflow_dispatch:      # Allows you to run it manually
+    - cron: '24 16 * * *'  # 00:24 (UTC+8) every day
+  workflow_dispatch:       # Triggered by Cloudflare Worker (or manually)
 
 permissions:
   contents: write
@@ -24,8 +24,8 @@ jobs:
 
       - name: Install Dependencies
         run: |
-          pip install requests
           pip install --upgrade pip
+          pip install requests lxml
 
       - name: Run EPG Scraper
         env:
@@ -43,8 +43,12 @@ jobs:
           # Add the epg and the heartbeat file
           git add e_dir/*.gz last_run.txt
           
-          # Commit using amend to keep the repo history from growing
-          git commit --amend -m "Fresh Update: $(date -u)" || git commit -m "Fresh Update: $(date -u)"
-          
-          # Force push to overwrite the old file with the new one
-          git push --force
+          # Only amend if the latest commit was made by this bot;
+          # otherwise create a new commit so the code commits stay intact.
+          if [ "$(git log -1 --pretty=format:'%ae')" = "action@github.com" ]; then
+            git commit --amend -m "Fresh Update: $(date -u)"
+            git push --force
+          else
+            git commit -m "Fresh Update: $(date -u)"
+            git push
+          fi
